@@ -1,0 +1,74 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/02/ALU.hdl
+
+/**
+ * The ALU (Arithmetic Logic Unit).
+ * Computes one of the following functions:
+ * x+y, x-y, y-x, 0, 1, -1, x, y, -x, -y, !x, !y,
+ * x+1, y+1, x-1, y-1, x&y, x|y on two 16-bit inputs, 
+ * according to 6 input bits denoted zx,nx,zy,ny,f,no.
+ * In addition, the ALU computes two 1-bit outputs:
+ * if the ALU output == 0, zr is set to 1; otherwise zr is set to 0;
+ * if the ALU output < 0, ng is set to 1; otherwise ng is set to 0.
+ */
+
+// Implementation: the ALU logic manipulates the x and y inputs
+// and operates on the resulting values, as follows:
+// if (zx == 1) set x = 0        // 16-bit constant
+// if (nx == 1) set x = !x       // bitwise not
+// if (zy == 1) set y = 0        // 16-bit constant
+// if (ny == 1) set y = !y       // bitwise not
+// if (f == 1)  set out = x + y  // integer 2's complement addition
+// if (f == 0)  set out = x & y  // bitwise and
+// if (no == 1) set out = !out   // bitwise not
+// if (out == 0) set zr = 1
+// if (out < 0) set ng = 1
+
+CHIP ALU {
+    IN  
+        x[16], y[16],  // 16-bit inputs        
+        zx, // zero the x input?
+        nx, // negate the x input?
+        zy, // zero the y input?
+        ny, // negate the y input?
+        f,  // compute out = x + y (if 1) or x & y (if 0)
+        no; // negate the out output?
+
+    OUT 
+        out[16], // 16-bit output
+        zr, // 1 if (out == 0), 0 otherwise
+        ng; // 1 if (out < 0),  0 otherwise
+
+    PARTS:
+    // Zero the x input if needed
+    Mux16 (a=x, b=false, sel=zx, out=zxPassed);
+
+    // Negate the x input if needed
+    Not16 (in=zxPassed, out=Notx);
+    Mux16 (a=zxPassed, b=Notx, sel=nx, out=nxPassed);
+
+    // Same with y
+    Mux16 (a=y, b=false, sel=zy, out=zyPassed);
+    Not16 (in=zyPassed, out=Noty);
+    Mux16 (a=zyPassed, b=Noty, sel=ny, out=nyPassed);
+
+    // Choose and perform either addition or bitwise And
+    Add16 (a=nxPassed, b=nyPassed, out=xAddy);
+    And16 (a=nxPassed, b=nyPassed, out=xAndy);
+    Mux16 (a=xAndy, b=xAddy, sel=f, out=firstOut);
+
+    // Negate the output if needed
+    Not16 (in=firstOut, out=NotOut);
+    Mux16 (a=firstOut, b=NotOut, sel=no, out=out, out[15]=signBit, out[0..7]=block1, out[8..15]=block2);
+
+    // Compute zr
+    Or8Way (in=block1, out=isThereOne1);
+    Or8Way (in=block2, out=isThereOne2);
+    Or (a=isThereOne1, b=isThereOne2, out=Notzr);
+    Not (in=Notzr, out=zr);
+
+    // Compute ng
+    And (a=signBit, b=true, out=ng);
+}
