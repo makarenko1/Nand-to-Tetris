@@ -1,0 +1,42 @@
+// This chip receives all the needed input from the A,D Register and M that
+// the ALU needs. Is a helper chip for the CPU and CPUMul chips.
+
+CHIP ConfigureRegistersCPU {
+
+    IN inM[16],          // M value input  (M = contents of RAM[A])
+       instruction[16],  // Instruction for execution
+       ALUOut[16];       // The ALU output from time t-1.
+
+    OUT ARegOut[16],     // The ARegister output
+        DRegOut[16],     // The DRegister output
+        AorM[16],        // The ARegister output or an M
+        writeM,          // Write to M?
+        addressM[15];    // Address in data memory (of M).
+
+    PARTS:
+    // If instruction[15] == 0, then it is an A-Instruction, and so load the
+    // A-Register with the instruction. Else, it is a C-Instruction with the
+    // destination in A, and so load it with the result of computation from
+    // the ALU.
+    And (a=instruction[15], b=instruction[5], out=CInstructionToA);
+    Not (in=instruction[15], out=AInstruction);  // if A instruction.
+    Or (a=CInstructionToA, b=AInstruction, out=ARegLoad); // compute load.
+    Mux16 (a=instruction, b=ALUOut, sel=instruction[15], out=ARegIn);
+    ARegister (in=ARegIn, load=ARegLoad, out=ARegOut, out=ARegOut2,
+    out[0..14]=addressM); // ARegOut2 is for internal use in this chip only.
+
+    // Write to the D-Register only if it is a C-Instruction
+    // (instruction[15] == 1) and also the result of the computation must be
+    // written into the D-Register (instruction[4] == 1).
+    And (a=instruction[15], b=instruction[4], out=DRegLoad);
+    DRegister (in=ALUOut, load=DRegLoad, out=DRegOut);
+
+    // The ALU can either do operations with D and A or with D and M. Pass M if
+    // it is a C-Instruction and the a-bit in the instruction (instruction[12])
+    // is invoked.
+    And (a=instruction[15], b=instruction[12], out=MLoad);
+    Mux16 (a=ARegOut2, b=inM, sel=MLoad, out=AorM);
+
+    // Write to M only if instruction[3] == 1 and it is a C-Instruction.
+    And (a=instruction[15], b=instruction[3], out=writeM);
+}

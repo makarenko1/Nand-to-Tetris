@@ -1,0 +1,45 @@
+// This chip sets the correct program counter according to all the jump
+// instructions and the Registers' outputs. Is a helper chip for the CPU and
+// CPUMul chips.
+
+CHIP ConfigureJumpsCPU {
+
+    IN zr,              // Is the ALU output zero?
+       ng,              // Is the ALU output negative?
+       instruction[3],  // Jump instructions
+       CInstruction,    // Is this a C-Instruction?
+       ARegOut[16],     // The ARegister output
+       reset;           // Signals whether to re-start the current
+                        // program (reset==1) or continue executing
+                        // the current program (reset==0).
+
+    OUT pc[15];         // Address of the next instruction.
+
+    PARTS:
+    // Check if JGT:
+    Not (in=ng, out=pos);
+    Not (in=zr, out=nzr);
+    And (a=pos, b=nzr, out=posAndnzr);
+    And (a=instruction[0], b=posAndnzr, out=jgt);
+
+    // Check if JEQ:
+    And (a=instruction[1], b=zr, out=jeq);
+
+    // Check if JLT:
+    And (a=instruction[2], b=ng, out=jlt);
+
+    // Check if there is a need to jump based on JGT, JEQ, JLT. We don't need
+    // to check the rest of the jump instructions because:
+    // JGE = JGT Or JEQ, JLE = JLT Or JEQ, JNE = JGT Or JLT,
+    // JMP = JGT Or JEQ Or JLT.
+    Or (a=jgt, b=jeq, out=jgtOrjeq);
+    Or (a=jgtOrjeq, b=jlt, out=IfJump);
+
+    // We can jump only if it is a C-Instruction:
+    And (a=CInstruction, b=IfJump, out=PCLoad);
+
+    // Proceed to the next instruction (increment counter) iff there is no
+    // jump to perform.
+    Not (in=PCLoad, out=PCInc);
+    PC (in=ARegOut, load=PCLoad, inc=PCInc, reset=reset, out[0..14]=pc);
+}

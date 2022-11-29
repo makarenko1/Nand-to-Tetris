@@ -1,0 +1,140 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/12/String.jack
+
+/**
+ * Represents character strings. In addition for constructing and disposing
+ * strings, the class features methods for getting and setting individual
+ * characters of the string, for erasing the string's last character,
+ * for appending a character to the string's end, and more typical
+ * string-oriented operations.
+ */
+class String {
+
+    field Array buffer;
+    field int currentLength;
+    field int bufferLength;
+
+    /** Constructs a new empty string with a maximum length of maxLength
+     *  and initial length of 0. */
+    constructor String new(int maxLength) {
+        if (maxLength > 0) {
+            let buffer = Array.new(maxLength);
+        }
+        let currentLength = 0;
+        let bufferLength = maxLength;
+        return this;
+    }
+
+    /** Disposes this string. */
+    method void dispose() {
+        if (bufferLength > 0) {
+            do buffer.dispose();
+        }
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    /** Returns the current length of this string. */
+    method int length() {
+        return currentLength;
+    }
+
+    /** Returns the character at the j-th location of this string. */
+    method char charAt(int j) {
+        return buffer[j];
+    }
+
+    /** Sets the character at the j-th location of this string to c. */
+    method void setCharAt(int j, char c) {
+        let buffer[j] = c;
+        return;
+    }
+
+    /** Appends c to this string's end and returns this string. */
+    method String appendChar(char c) {
+        if (currentLength < bufferLength) {
+            let buffer[currentLength] = c;
+            let currentLength = currentLength + 1;
+        }
+        return this;
+    }
+
+    /** Erases the last character from this string. */
+    method void eraseLastChar() {
+        if (currentLength > 0) {
+            let currentLength = currentLength - 1;
+        }
+        return;
+    }
+
+    /** Returns true iff the character at the index i is a digit. */
+    method boolean isDigit(int i) {
+        return ((buffer[i] > 47) & (buffer[i] < 58));
+    }
+
+    /** Returns the integer value of this string, until a non-digit character
+     * is detected. */
+    method int intValue() {
+        var int val, i;
+        var boolean isNegative;
+        let val = 0;
+        let isNegative = false;
+        let i = 0;
+        if ((currentLength > 0) & (buffer[0] = 45)) {
+            let isNegative = true;
+            let i = 1;
+        }
+        while ((i < currentLength) & isDigit(i)) {
+            let val = (val * 10) + buffer[i] - 48;
+            let i = i + 1;
+        }
+        if (isNegative) {
+            return -val;
+        }
+        return val;
+    }
+
+    /** Calculates the string representation of a non-negative integer. */
+    method void setIntHelper(int val) {
+        var int allBeforeLast;
+        var int lastDigitChar;
+        if (val < 10) {
+            do appendChar(val + 48);
+        }
+        else {
+            let allBeforeLast = val / 10;
+            let lastDigitChar = val - (allBeforeLast * 10);
+            do setIntHelper(allBeforeLast);
+            do appendChar(lastDigitChar + 48);
+        }
+        return;
+    }
+
+    /** Sets this string to hold a representation of the given value. */
+    method void setInt(int val) {
+        let currentLength = 0;
+        if (val < 0) {
+            do appendChar(45);
+            let val = -val;
+        }
+        do setIntHelper(val);
+        return;
+    }
+
+    /** Returns the new line character. */
+    function char newLine() {
+        return 128;
+    }
+
+    /** Returns the backspace character. */
+    function char backSpace() {
+        return 129;
+    }
+
+    /** Returns the double quote (") character. */
+    function char doubleQuote() {
+        return 34;
+    }
+}

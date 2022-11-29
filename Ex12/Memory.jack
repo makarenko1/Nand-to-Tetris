@@ -1,0 +1,119 @@
+// This file is part of nand2tetris, as taught in The Hebrew University,
+// and was written by Aviv Yaish, and is published under the Creative
+// Common Attribution-NonCommercial-ShareAlike 3.0 Unported License
+// https://creativecommons.org/licenses/by-nc-sa/3.0/
+// It is an extension to the specifications given in
+// https://www.nand2tetris.org (Shimon Schocken and Noam Nisan, 2017)
+// as allowed by the Creative Common Attribution-NonCommercial-ShareAlike 3.0
+// File name: projects/12/Memory.jack
+
+/**
+ * This library provides two services: direct access to the computer's main
+ * memory (RAM), and allocation and recycling of memory blocks. The Hack RAM
+ * consists of 32,768 words, each holding a 16-bit binary number.
+ */
+class Memory {
+
+    static Array memory;
+    static Array freeList;
+
+    /** Initializes the class. */
+    function void init() {
+        // Pseudocode:
+        // 1. freeList = heapBase
+        // 2. freeList.length = heapLength
+        // 3. freeList.next = null
+        let memory = 0;
+        let freeList = 2048;
+        let freeList[0] = 16384 - 2048;
+        let freeList[1] = null;
+        return;
+    }
+
+    /** Returns the RAM value at the given address. */
+    function int peek(int address) {
+        return memory[address];
+    }
+
+    /** Sets the RAM value at the given address to the given value. */
+    function void poke(int address, int value) {
+        let memory[address] = value;
+        return;
+    }
+
+    function int alloc(int size) {
+        // Pseudocode:
+        // 1. Search freeList using best-fit or first-fit heuristics to obtain
+        //    a segment with segment.length > size.
+        //    If no such segment is found, return -1.
+        // 2. block = needed part of the found segment (or all of it, if the
+        //            segment remainder is too small).
+        // 3. block[-1] = size + 1 // Remember block size, for de-allocation
+        // 4. Update freeList to reflect the allocation
+        // 5. Return block
+        // The figure MemoryTest/MemoryFreeListExample.png illustrates how
+        // the freeList should look like.
+        var Array previous, current, block;
+        let previous = null;
+        let current = freeList;
+        while (current < 16384) {
+            if (current = null) {
+                return -1;
+            }
+            if (current[0] > (size + 2)) {
+                let block = current + current[0] - size - 1;
+                let block[0] = size + 1;
+                let current[0] = current[0] - block[0];
+                return block + 1;
+            }
+            // If the segment remainder is too small:
+            if ((current[0] = (size + 1)) | (current[0] = (size + 2))) {
+                if (previous = null) {
+                    let freeList = current[1];
+                }
+                else {
+                    let previous[1] = current[1];
+                }
+                let current[0] = size + 1;
+                return current + 1;
+            }
+            let previous = current;
+            let current = current[1];
+        }
+        return -1;
+    }
+
+    /** De-allocates the given object (cast as an array) by making it
+     * available for future allocations. */
+    function void deAlloc(Array o) {
+        // Pseudocode:
+        // 1. segment = o - 1
+        // 2. Insert segment into the freeList
+        var Array segment;
+        if (o = -1) {  // the allocation wasn't successful.
+            return;
+        }
+        let segment = o - 1;
+        let segment[1] = freeList;
+        let freeList = segment;
+        return;
+    }
+
+    /** Returns the maximal element contained in the given Array/object.
+     * Assume inputs are initialized and contain at least one element. */
+	function int max(Array o) {
+        // Hint: the algorithm you need to implement in Memory.alloc saves the
+        // size of the allocated block in the memory cell right before the
+        // start of the block, and this can be used to implement Memory.max.
+        var int maximum, i;
+        let maximum = o[0];
+        let i = 1;
+        while (i < (o[-1] - 1)) {
+            if (o[i] > maximum) {
+                let maximum = o[i];
+            }
+            let i = i + 1;
+        }
+        return maximum;
+    }
+}

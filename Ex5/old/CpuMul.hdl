@@ -1,0 +1,101 @@
+// This file is part of nand2tetris, as taught in The Hebrew University,
+// and was written by Aviv Yaish, and is published under the Creative 
+// Common Attribution-NonCommercial-ShareAlike 3.0 Unported License 
+// https://creativecommons.org/licenses/by-nc-sa/3.0/
+
+// This chip is an extension of the regular CPU that uses the extended ALU.
+// If instruction[15]==0 or (instruction[14] and instruction[13] equals 1)
+// the CpuMul behave exactly as the same as the regular CPU.
+// If the instruction is a c-instruction and instruction[14] == 0, the chip will 
+// behave as follows:
+//  Instruction  | 12 | 11 | 10 |
+// ______________________________
+// dest=D<<;jump | 0  | 1  | 1  |
+// dest=A<<;jump | 0  | 1  | 0  |
+// dest=M<<;jump | 1  | 1  | 0  |
+// dest=D>>;jump | 0  | 0  | 1  |
+// dest=A>>;jump | 0  | 0  | 0  |
+// dest=M>>;jump | 1  | 0  | 0  |
+
+CHIP CpuMul {
+    IN  inM[16],         // M value input  (M = contents of RAM[A])
+        instruction[16], // Instruction for execution
+        reset;           // Signals whether to re-start the current
+                         // program (reset=1) or continue executing
+                         // the current program (reset=0).
+    OUT outM[16],        // M value output
+        writeM,          // Write into M? 
+        addressM[15],    // Address in data memory (of M)
+        pc[15];          // address of next instruction
+    
+    PARTS:
+    // If instruction[15] == 0, then it is an A-Instruction, and so load the
+    // A-Register with the instruction. Else, it is a C-Instruction, and so
+    // load it with the result of computation from the ALU.
+    And (a=instruction[15], b=instruction[5], out=CInstructionToA);
+    Not (in=instruction[15], out=AInstruction);  // if A instruction.
+    Or (a=CInstructionToA, b=AInstruction, out=ARegLoad); // compute load.
+    Mux16 (a=instruction, b=ALUOut, sel=instruction[15], out=ARegIn);
+    ARegister (in=ARegIn, load=ARegLoad, out=ARegOut,
+    out[0..14]=addressM); // two outputs.
+
+    // Write to the D-Register only if it is a C-Instruction
+    // (instruction[15] == 1) and also the result of the computation must be
+    // written into the D-Register (instruction[4] == 1).
+    And (a=instruction[15], b=instruction[4], out=DRegLoad);
+    DRegister (in=ALUOut, load=DRegLoad, out=DRegOut);
+
+    // The ALU can either do operations with D and A or with D and M. Pass M if
+    // it is a C-Instruction and the a-bit in the instruction (instruction[12])
+    // is invoked.
+    And (a=instruction[15], b=instruction[12], out=MLoad);
+    Mux16 (a=ARegOut, b=inM, sel=MLoad, out=AorM);
+
+    ExtendAlu (x=DRegOut, y=AorM, instruction=instruction[6..14], out=ALUOut,
+    out=outM, zr=zr, ng=ng); // two main outputs.
+
+    // Write to M only if instruction[3] == 1.
+    And (a=instruction[15], b=instruction[3], out=writeM);
+
+    // If instruction[0] || instruction[1] || instruction[2] == 1, pc =
+    // = addressM. If they are zeroes, pc++.
+    // Check if JGT:
+    Not (in=ng, out=pos);
+    Not (in=zr, out=nzr);
+    And (a=pos, b=nzr, out=posAndnzr);
+    And (a=instruction[0], b=posAndnzr, out=jgt);
+
+    // Check if JEQ:
+    And (a=instruction[1], b=zr, out=jeq);
+
+    // Check if JGE:
+    Or (a=pos, b=zr, out=posOrzr);
+    And (a=instruction[0], b=instruction[1], out=Ifjge);
+    And (a=Ifjge, b=posOrzr, out=jge);
+
+    // Check if JLT:
+    And (a=ng, b=nzr, out=ngAndnzr);
+    And (a=instruction[2], b=ngAndnzr, out=jlt);
+
+    // Check if JNE:
+    And (a=instruction[0], b=instruction[2], out=Ifjne);
+    And (a=Ifjne, b=nzr, out=jne);
+
+    // Check if JLE:
+    Or (a=ng, b=zr, out=ngOrzr);
+    And (a=instruction[1], b=instruction[2], out=Ifjle);
+    And (a=Ifjle, b=ngOrzr, out=jle);
+
+    // Check if unconditional jump:
+    And (a=instruction[0], b=instruction[1], out=Ifjmp);
+    And (a=Ifjmp, b=instruction[2], out=jmp);
+
+    // Check if there is a need to jump:
+    Or8Way (in[0]=jgt, in[1]=jeq, in[2]=jge, in[3]=jlt, in[4]=jne, in[5]=jle,
+    in[6]=jmp, in[7]=false, out=IfJump);
+
+    // Set the PC:
+    And (a=instruction[15], b=IfJump, out=PCLoad);
+    Not (in=PCLoad, out=PCInc);
+    PC (in=ARegOut, load=PCLoad, inc=PCInc, reset=reset, out[0..14]=pc);
+}
